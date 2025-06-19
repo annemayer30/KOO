@@ -136,7 +136,7 @@ def optimize_ess(Pload_raw, Cost, Ppv_raw, SoC_max, SoC_min, Einit_ratio, dt,
 
 def main():
     st.set_page_config(layout="wide")
-    st.title("서울시 압전 기반 ESS ROI 최적화 도구")
+    st.title("서울시 압전 발전 ESS 운용 최적화")
 
     # ==== 사이드바 입력 ====
     SoC_max = st.sidebar.slider("Max SoC", 0.5, 1.0, 0.8)
