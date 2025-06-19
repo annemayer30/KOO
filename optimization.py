@@ -232,7 +232,7 @@ def main():
 
         # Grid Price
         axes[1].plot(best['thour'], best['Cost'], linewidth=1.5)
-        axes[1].set_ylabel("Grid Price [$/kWh]")
+        axes[1].set_ylabel("Grid Price [₩/kWh]")
         axes[1].grid(True)
         axes[1].set_xlim([1, 24])
 
