@@ -16,127 +16,7 @@ def load_data():
     """엑셀 파일을 모두 불러와 캐싱합니다."""
     location_df = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/location.xlsx")           # 지점 좌표
     traffic_df  = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/trafficData01.xlsx", header=None)  # 분 단위 교통량 (1 일)
-    load_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/loadData.xlsx",  header=None)      # 4개 부하 시나리오
-    cost_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/costData.xlsx",  header=None)      # 전력단가 [$ / kWh]
-    time_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/time.xlsx",      header=None)      # 분 단위 타임스탬프 [s]
-    return location_df, traffic_df, load_df, cost_df, time_df.values.flatten()
-
-# -------------------------------------------------------------
-# ESS 경제성 최적화 (ROI 최대) –– 원본 1번 코드 로직 이식
-# -------------------------------------------------------------
-
-def optimize_ess(Pload_raw, Cost, Ppv_raw, SoC_max, SoC_min, Einit_ratio, dt,
-                 battery_range_kWh, pcs_range_kW,
-                 battery_cost_per_kWh, pcs_cost_per_kW):
-    """배터리·PCS 용량 조합 중 10 년 ROI가 최대가 되는 결과를 반환"""
-
-    # time step
-    N = len(Pload_raw)
-
-    best_ROI   = -np.inf
-    best_result = None
-
-    # kWh → J, kW → W 로 변환 위해 1e3, 3.6e6 사용
-    for batt_kWh in battery_range_kWh:
-        battEnergy = batt_kWh * 3.6e6                      # [J]
-        Emin  = SoC_min * battEnergy
-        Emax  = SoC_max * battEnergy
-        Einit = Einit_ratio * battEnergy
-
-        for pcs_kW in pcs_range_kW:
-            Pmin = -pcs_kW * 1e3
-            Pmax =  pcs_kW * 1e3
-
-            # ------------ 선형계획법 세팅 (원본과 동일) ------------
-            c = np.concatenate([dt * Cost, np.zeros(N), np.zeros(N)])
-            bounds = [(0, max(Pload_raw)*0.9)] * N + [(Pmin, Pmax)] * N + [(Emin, Emax)] * N
-
-            # 에너지 연속 제약
-            A_eq = np.zeros((N + 1, 3 * N))
-            b_eq = np.zeros(N + 1)
-            A_eq[0, N]    = dt
-            A_eq[0, 2*N]  = 1
-            b_eq[0]       = Einit
-            for i in range(1, N):
-                A_eq[i, N+i]        = dt
-                A_eq[i, 2*N + i]    = 1
-                A_eq[i, 2*N + i-1]  = -1
-            A_eq[N, 2*N + N - 1] = 1
-            b_eq[N] = Einit
-
-            # 수요 만족 제약  (Pgrid + Pbatt = Pload - Ppv)
-            A_load = np.zeros((N, 3*N))
-            for i in range(N):
-                A_load[i, i]     = 1      # Pgrid
-                A_load[i, N+i]   = 1      # Pbatt
-            b_load = Pload_raw - Ppv_raw
-
-            res = linprog(
-                c=c,
-                A_eq=np.vstack([A_eq, A_load]),
-                b_eq=np.concatenate([b_eq, b_load]),
-                bounds=bounds,
-                method='highs'
-            )
-
-            if not res.success:
-                continue
-
-            x      = res.x
-            Pgrid  = x[:N]
-            Pbatt  = x[N:2*N]
-            Ebatt  = x[2*N:]
-            SoC    = Ebatt / battEnergy * 100
-
-            # ------------ 경제성 평가 ------------
-            LoadCost  = np.sum(((Pload_raw - Ppv_raw) / 1e3) * Cost)  # ESS 없을 때 비용
-            GridCost  = np.sum((Pgrid / 1e3) * Cost)                  # ESS 있을 때 비용
-            true_sav  = max(0, LoadCost - GridCost)
-            annual_sv = true_sav * 365
-            sv_10yr   = annual_sv * 10
-
-            batt_cost = batt_kWh * battery_cost_per_kWh
-            pcs_cost  = pcs_kW   * pcs_cost_per_kW
-            total_cost = batt_cost + pcs_cost
-
-            ROI = (sv_10yr - total_cost) / total_cost * 100 if total_cost > 0 else -np.inf
-            payback = total_cost / true_sav if true_sav > 0 else math.inf
-
-            if ROI > best_ROI:
-                best_ROI = ROI
-                best_result = {
-                    "batt_kWh": batt_kWh,
-                    "pcs_kW"  : pcs_kW,
-                    "Pgrid"   : Pgrid,
-                    "Pbatt"   : Pbatt,
-                    "Ebatt"   : Ebatt,
-                    "SoC"     : SoC,
-                    "Cost"    : Cost,
-                    "Pload"   : Pload_raw,
-                    "Ppv"     : Ppv_raw,
-                    "thour"   : np.arange(1, N+1) * dt / 3600,
-                    "summary" : {
-                        "Battery Capacity (kWh)" : batt_kWh,
-                        "PCS Rating (kW)"        : pcs_kW,
-                        "Annual Saving (₩)"       : annual_sv,
-                        "10‑yr Saving (₩)"        : sv_10yr,
-                        "CAPEX Battery (₩)"      : batt_cost,
-                        "CAPEX PCS (₩)"          : pcs_cost,
-                        "Total CAPEX (₩)"        : total_cost,
-                        "ROI (%)"                : ROI,
-                        "Payback (days)"         : payback
-                    }
-                }
-
-    return best_result
-
-# -------------------------------------------------------------
-# Streamlit UI (지도 + 결과 표시)
-# -------------------------------------------------------------
-
-def main():
-    st.set_page_config(layout="wide")
-    st.title("서울시 압전 기반 ESS ROI 최적화 도구")
+    load_df     = pd.read_excel("https://raw.githubusercontent.com/a용 최적화")
 
     # ==== 사이드바 입력 ====
     SoC_max = st.sidebar.slider("Max SoC", 0.5, 1.0, 0.8)
@@ -240,7 +120,7 @@ def main():
         axes[2].plot(best['thour'], best['Pgrid']/1e3, label='Grid [kW]')
         axes[2].plot(best['thour'], best['Pload']/1e3, label='Load [kW]')
         axes[2].plot(best['thour'], best['Pbatt']/1e3, label='Battery [kW]')
-        axes[2].plot(best['thour'], best['Ppv']/1e3, label='Piezo PV [kW]')
+        axes[2].plot(best['thour'], best['Ppv']/1e3, label='Piezo [kW]')
         axes[2].set_ylabel("Power [kW]")
         axes[2].grid(True)
         axes[2].set_xlim([1, 24])
