@@ -146,7 +146,7 @@ def main():
     loadBase   = st.sidebar.number_input("Load Base [W]", value=350000.0)
 
     # ---- Piezo 관련 ----
-    piezo_unit_output = st.sidebar.number_input("Piezo Output per Tile [Wh]", value=0.00000289, format="%.8f")
+    piezo_unit_output = st.sidebar.number_input("Piezo Output per Tile [W]", value=0.62, format="%.8f")
     piezo_count       = st.sidebar.number_input("Piezo Tiles per Wheel", value=100000, step=1000)
 
     # ---- 기타 ----
