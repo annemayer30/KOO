@@ -162,17 +162,23 @@ def main():
 
         dt = timeOptimize * 60
         stepAdjust = int(dt / (time_vec[1] - time_vec[0]))
-        Ppv = Ppv_full[2::stepAdjust][:len(time_vec[2::stepAdjust])]
-        N = len(Ppv)
+        Ppv_raw = Ppv_full[2::stepAdjust][:len(time_vec[2::stepAdjust])]
+        N = len(Ppv_raw)
 
         if loadSelect == 4:
-            Pload_raw = load_df.iloc[2::stepAdjust, loadSelect].values[:N] * (lamp_count * lamp_power / 1000)
+            if load_df.shape[1] <= loadSelect:
+                st.error("선택한 부하 시나리오(열)가 데이터에 존재하지 않습니다.")
+                return
+            Pload_unit = load_df.iloc[2::stepAdjust, loadSelect].values[:N]
+            Pload_raw = Pload_unit * (lamp_count * lamp_power / 1000)
+            Ppv_masked = Ppv_raw * (Pload_unit > 0)
         else:
             Pload_raw = load_df.iloc[2::stepAdjust, loadSelect].values[:N] + loadBase
+            Ppv_masked = Ppv_raw
 
         Cost = cost_df.iloc[2::stepAdjust, 0].values[:N]
 
-        best = optimize_ess(Pload_raw, Cost, Ppv, SoC_max, SoC_min, Einit_ratio, dt,
+        best = optimize_ess(Pload_raw, Cost, Ppv_masked, SoC_max, SoC_min, Einit_ratio, dt,
                             battery_range_kWh, pcs_range_kW,
                             battery_cost_per_kWh, pcs_cost_per_kW)
 
