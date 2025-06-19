@@ -16,7 +16,34 @@ def load_data():
     """엑셀 파일을 모두 불러와 캐싱합니다."""
     location_df = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/location.xlsx")           # 지점 좌표
     traffic_df  = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/trafficData01.xlsx", header=None)  # 분 단위 교통량 (1 일)
-    load_df     = pd.read_excel("https://raw.githubusercontent.com/a용 최적화")
+    load_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/loadData.xlsx",  header=None)      # 4개 부하 시나리오
+    cost_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/costData.xlsx",  header=None)      # 전력단가 [$ / kWh]
+    time_df     = pd.read_excel("https://raw.githubusercontent.com/annemayer30/KOO/main/time.xlsx",      header=None)      # 분 단위 타임스탬프 [s]
+    return location_df, traffic_df, load_df, cost_df, time_df.values.flatten()
+
+# -------------------------------------------------------------
+# ESS 경제성 최적화 (ROI 최대) –– 원본 1번 코드 로직 이식
+# -------------------------------------------------------------
+
+def optimize_ess(Pload_raw, Cost, Ppv_raw, SoC_max, SoC_min, Einit_ratio, dt,
+                 battery_range_kWh, pcs_range_kW,
+                 battery_cost_per_kWh, pcs_cost_per_kW):
+    """배터리·PCS 용량 조합 중 10 년 ROI가 최대가 되는 결과를 반환"""
+
+    # time step
+    N = len(Pload_raw)
+
+    best_ROI   = -np.inf
+    best_result = None
+
+    # kWh → J, kW → W 로 변환 위해 1e3, 3.6e6 사용
+    for batt_kWh in battery_range_kWh:
+        battEnergy = batt_kWh * 3.6e6                      # [J]
+        Emin  = SoC_min * battEnergy
+        Emax  = SoC_max * battEnergy
+        Einit = Einit_ratio * battEnergy
+
+        fo전 ESS 운용 최적화")
 
     # ==== 사이드바 입력 ====
     SoC_max = st.sidebar.slider("Max SoC", 0.5, 1.0, 0.8)
@@ -26,13 +53,13 @@ def load_data():
     loadBase   = st.sidebar.number_input("Load Base [W]", value=350000.0)
 
     # ---- Piezo 관련 ----
-    piezo_unit_output = st.sidebar.number_input("Piezo Output per Tile [W]", value=0.62, format="%.8f")
-    piezo_count       = st.sidebar.number_input("Piezo Tiles per Wheel", value=1000, step=1000)
+    piezo_unit_output = st.sidebar.number_input("Piezo Output per Tile [Wh]", value=0.00000289, format="%.8f")
+    piezo_count       = st.sidebar.number_input("Piezo Tiles per Wheel", value=100000, step=1000)
 
     # ---- 기타 ----
     timeOptimize = st.sidebar.number_input("Optimization Interval [min]", value=60)
-    battery_cost_per_kWh = st.sidebar.number_input("Battery Cost (₩/kWh)", value=400000)
-    pcs_cost_per_kW      = st.sidebar.number_input("PCS Cost (₩/kW)",      value=300000)
+    battery_cost_per_kWh = st.sidebar.number_input("Battery Cost ($/kWh)", value=400)
+    pcs_cost_per_kW      = st.sidebar.number_input("PCS Cost ($/kW)",      value=300)
 
     # 범위 (고정 or 사용자가 조정 가능하도록 UI 추가 가능)
     battery_range_kWh = np.arange(500, 3001, 500)   # 500 ~ 3000 kWh
@@ -112,7 +139,7 @@ def load_data():
 
         # Grid Price
         axes[1].plot(best['thour'], best['Cost'], linewidth=1.5)
-        axes[1].set_ylabel("Grid Price [₩/kWh]")
+        axes[1].set_ylabel("Grid Price [$/kWh]")
         axes[1].grid(True)
         axes[1].set_xlim([1, 24])
 
@@ -120,7 +147,7 @@ def load_data():
         axes[2].plot(best['thour'], best['Pgrid']/1e3, label='Grid [kW]')
         axes[2].plot(best['thour'], best['Pload']/1e3, label='Load [kW]')
         axes[2].plot(best['thour'], best['Pbatt']/1e3, label='Battery [kW]')
-        axes[2].plot(best['thour'], best['Ppv']/1e3, label='Piezo [kW]')
+        axes[2].plot(best['thour'], best['Ppv']/1e3, label='Piezo PV [kW]')
         axes[2].set_ylabel("Power [kW]")
         axes[2].grid(True)
         axes[2].set_xlim([1, 24])
@@ -130,3 +157,4 @@ def load_data():
 
 if __name__ == "__main__":
     main()
+
