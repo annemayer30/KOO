@@ -118,11 +118,11 @@ def optimize_ess(Pload_raw, Cost, Ppv_raw, SoC_max, SoC_min, Einit_ratio, dt,
                     "summary" : {
                         "Battery Capacity (kWh)" : batt_kWh,
                         "PCS Rating (kW)"        : pcs_kW,
-                        "Annual Saving ($)"       : annual_sv,
-                        "10‑yr Saving ($)"        : sv_10yr,
-                        "CAPEX Battery ($)"      : batt_cost,
-                        "CAPEX PCS ($)"          : pcs_cost,
-                        "Total CAPEX ($)"        : total_cost,
+                        "Annual Saving (₩)"       : annual_sv,
+                        "10‑yr Saving (₩)"        : sv_10yr,
+                        "CAPEX Battery (₩)"      : batt_cost,
+                        "CAPEX PCS (₩)"          : pcs_cost,
+                        "Total CAPEX (₩)"        : total_cost,
                         "ROI (%)"                : ROI,
                         "Payback (days)"         : payback
                     }
@@ -147,12 +147,12 @@ def main():
 
     # ---- Piezo 관련 ----
     piezo_unit_output = st.sidebar.number_input("Piezo Output per Tile [W]", value=0.62, format="%.8f")
-    piezo_count       = st.sidebar.number_input("Piezo Tiles per Wheel", value=100000, step=1000)
+    piezo_count       = st.sidebar.number_input("Piezo Tiles per Wheel", value=1000, step=1000)
 
     # ---- 기타 ----
     timeOptimize = st.sidebar.number_input("Optimization Interval [min]", value=60)
-    battery_cost_per_kWh = st.sidebar.number_input("Battery Cost ($/kWh)", value=400)
-    pcs_cost_per_kW      = st.sidebar.number_input("PCS Cost ($/kW)",      value=300)
+    battery_cost_per_kWh = st.sidebar.number_input("Battery Cost (₩/kWh)", value=400000)
+    pcs_cost_per_kW      = st.sidebar.number_input("PCS Cost (₩/kW)",      value=300000)
 
     # 범위 (고정 or 사용자가 조정 가능하도록 UI 추가 가능)
     battery_range_kWh = np.arange(500, 3001, 500)   # 500 ~ 3000 kWh
@@ -232,7 +232,7 @@ def main():
 
         # Grid Price
         axes[1].plot(best['thour'], best['Cost'], linewidth=1.5)
-        axes[1].set_ylabel("Grid Price [$/kWh]")
+        axes[1].set_ylabel("Grid Price [₩/kWh]")
         axes[1].grid(True)
         axes[1].set_xlim([1, 24])
 
